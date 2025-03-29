@@ -133,13 +133,14 @@ class GameRenderer:
             's': Action.DOWN,
             'd': Action.RIGHT,
             'q': Action.STAY,
+            ' ': Action.STAY,  # Space bar for STAY
             'b': Action.BOMB
         }
         
         legal_actions = self.game.get_legal_actions()
         
         while True:
-            print("\nEnter move (w=up, a=left, s=down, d=right, space=stay, b=bomb): ", end="")
+            print("\nEnter move (w=up, a=left, s=down, d=right, q=stay, b=bomb): ", end="")
             sys.stdout.flush()  # Ensure prompt is displayed
             
             try:

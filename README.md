@@ -147,8 +147,8 @@ The implementation includes several optimizations for faster training and gamepl
 - `a`: Move left
 - `s`: Move down
 - `d`: Move right
+- `q`: Stay still
 - `b`: Place bomb
-- `Space`: Stay still
 
 ## Learning Implementation
 
