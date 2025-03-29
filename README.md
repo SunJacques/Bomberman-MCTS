@@ -174,11 +174,3 @@ During training, the following statistics are tracked:
 3. **Opponent Trapping**: Place bombs to limit opponent movement
 4. **Safe Distance**: Stay away from bombs and anticipate chain reactions
 5. **Strategic Positioning**: Use walls for protection and trap opponents in corners
-
-## License
-
-MIT License
-
-## Acknowledgments
-
-This project was inspired by the classic Bomberman game and implements MCTS as described in academic literature. 
