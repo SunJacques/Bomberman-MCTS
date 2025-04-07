@@ -83,15 +83,15 @@ class MCTS:
         self.num_simulations = num_simulations
         self.exploration_weight = exploration_weight
         self.max_depth = max_depth
-        self.discount_factor = 0.95  # Slightly more aggressive discount factor
+        self.discount_factor = 0.95 
         
         # Learning parameters
         self.rewards_history = []  # Track rewards history
         self.action_stats = {}  # Maps (state_hash, action) to (visits, value)
-        self.position_weights = np.ones((11, 9)) * 0.5  # Default position weights (note height, width swap)
+        self.position_weights = np.ones((9, 11)) * 0.5  # Default position weights (note height, width swap)
         
         # MCTS can learn which positions are favorable over time
-        self.heatmap = np.ones((11, 9)) * 0.5  # Initial neutral heatmap (note height, width swap)
+        self.heatmap = np.ones((9, 11)) * 0.5  # Initial neutral heatmap (note height, width swap)
         
         # Performance optimization
         self.action_priors = {}  # For quickly filtering unlikely actions
@@ -339,7 +339,7 @@ class MCTS:
             
             # Use learned heatmap for movement actions
             move_actions = [a for a in legal_actions if a not in [Action.STAY, Action.BOMB]]
-            if move_actions and random.random() < 0.7:  # 70% chance to use heatmap
+            if move_actions and random.random() < 0.6:  # 70% chance to use heatmap
                 x, y = state.player_positions[player_id]
                 action_scores = []
                 
@@ -466,31 +466,61 @@ class MCTS:
         
         # Reward for destroying boxes - SIGNIFICANTLY INCREASED
         boxes_destroyed = state.boxes_destroyed[self.player_id]
-        reward += boxes_destroyed * 3.0  # Increased from 1.0 to 3.0
+        reward += boxes_destroyed * 2.0  # Increased from 1.0 to 5.0
         
         # Reward for power-ups - INCREASED
-        reward += (state.player_bomb_counts[self.player_id] - 1) * 5  # Increased from 2 to 5
-        reward += (state.player_bomb_ranges[self.player_id] - 2) * 7  # Increased from 3 to 7
+        reward += 3.4 * min(2,state.player_bomb_counts[self.player_id]) + \
+                  1.7 * min(4,state.player_bomb_counts[self.player_id]) + \
+                  0.7 * state.player_bomb_counts[self.player_id] # Increased from 2 to 5
+        reward += 0.9 * min(5,state.player_bomb_ranges[self.player_id]) + 0.4 * state.player_bomb_ranges[self.player_id] # Increased from 3 to 7
         
         # Distance-based rewards (encourage movement toward boxes) - IMPROVED
         x, y = state.player_positions[self.player_id]
         min_box_dist = float('inf')
         box_count = 0
+        total_box_dist = 0
         
         for i in range(state.height):
             for j in range(state.width):
                 if state.grid[i, j] == CellType.BOX.value:
                     box_count += 1
                     dist = abs(x - i) + abs(y - j)  # Manhattan distance
+                    total_box_dist += dist
                     min_box_dist = min(min_box_dist, dist)
         
-        if min_box_dist != float('inf'):
-            # Higher reward for being close to boxes
-            reward += 10.0 / (1.0 + min_box_dist)  # Increased from 5.0 to 10.0
+        avg_box_dist = total_box_dist / max(1, box_count)
+        
+        # if min_box_dist != float('inf'):
+        #     # Higher reward for being close to boxes
+        #     reward += 10.0 / (1.0 + min_box_dist)  # Increased from 5.0 to 10.0
             
-            # Add higher reward for placing bombs near boxes
-            if min_box_dist <= 1 and Action.BOMB in state.get_legal_actions():
-                reward += 15.0  # Significant bonus for bombing when next to boxes
+        #     # Add higher reward for placing bombs near boxes
+        #     if min_box_dist <= 1 and Action.BOMB in state.get_legal_actions():
+        #         reward += 15.0  # Significant bonus for bombing when next to boxes
+        
+        # Distance to other players penalty - encourages pursuing other players
+        player_dist = 0
+        player_count = 0
+        for p_id, (px, py) in enumerate(state.player_positions):
+            if p_id != self.player_id and state.player_alive[p_id]:
+                player_count += 1
+                player_dist += abs(x - px) + abs(y - py)
+        
+        if player_count > 0:
+            avg_player_dist = player_dist / player_count
+            # Penalty for being far from other players (encourages combat)
+            reward -= 0.05 * avg_player_dist
+        
+        # Center or box targeting based on game state
+        center_x, center_y = state.height // 2, state.width // 2
+        distance_to_center = abs(x - center_x) + abs(y - center_y)
+        
+        if state.remaining_boxes > 20:
+            # Early game: encourage moving to center
+            reward -= 0.04 * distance_to_center
+        else:
+            # Late game: focus on remaining boxes
+            reward -= 0.1 * avg_box_dist
         
         # Add position-based reward using the heatmap
         reward += self.heatmap[x, y] * 2.0  # Reward based on position preference
@@ -505,11 +535,11 @@ class MCTS:
         if bomb_placed:
             reward += 5.0  # Bonus for having active bombs
         
-        # Penalize being too close to bombs - adjusted to be less risk-averse
-        for bx, by, timer, bomb_range, _ in state.bombs:
-            dist = abs(x - bx) + abs(y - by)
-            if dist <= bomb_range and timer <= 2:  # Only penalize immediate threats
-                reward -= (5.0 / (timer + 1))  # Reduced from 10.0 to 5.0
+        # # Penalize being too close to bombs - adjusted to be less risk-averse
+        # for bx, by, timer, bomb_range, _ in state.bombs:
+        #     dist = abs(x - bx) + abs(y - by)
+        #     if dist <= bomb_range and timer <= 2:  # Only penalize immediate threats
+        #         reward -= (5.0 / (timer + 1))  # Reduced from 10.0 to 5.0
         
         # Penalize staying in the same spot for too long
         # This encourages movement and exploration
@@ -535,7 +565,7 @@ class MCTS:
         
         # Reward for being alive at the end
         if state.player_alive[self.player_id]:
-            reward += 300
+            reward += 500
             
             # Extra reward for winning
             rankings = state.get_rankings()
@@ -563,9 +593,36 @@ class MCTS:
                     box_dist_sum += dist
                     box_count += 1
         
+        # Calculate average distance to boxes
+        avg_box_dist = box_dist_sum / max(1, box_count)
+        
         # Higher reward for being close to boxes at the end
         if box_count > 0:
-            reward += (300 - (box_dist_sum / box_count)) * 1.0  # Increased from 200 to 300
+            reward += (300 - box_dist_sum / box_count) * 1.0  # Increased from 200 to 300
+        
+        # Distance to other players penalty
+        player_dist = 0
+        player_count = 0
+        for p_id, (px, py) in enumerate(state.player_positions):
+            if p_id != self.player_id and state.player_alive[p_id]:
+                player_count += 1
+                player_dist += abs(x - px) + abs(y - py)
+        
+        if player_count > 0:
+            avg_player_dist = player_dist / player_count
+            # Penalty for being far from other players (encourages combat)
+            reward -= 0.05 * avg_player_dist
+        
+        # Center or box targeting based on game state
+        center_x, center_y = state.height // 2, state.width // 2
+        distance_to_center = abs(x - center_x) + abs(y - center_y)
+        
+        if state.remaining_boxes > 20:
+            # Early game: encourage moving to center
+            reward -= 0.04 * distance_to_center
+        else:
+            # Late game: focus on remaining boxes
+            reward -= 0.1 * avg_box_dist
         
         return reward
     

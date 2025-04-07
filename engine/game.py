@@ -20,7 +20,7 @@ class Action(Enum):
     BOMB = 5
 
 class Game:
-    def __init__(self, num_players=4, width=9, height=11, max_turns=200):
+    def __init__(self, num_players=4, width=11, height=9, max_turns=200):
         self.width = width
         self.height = height
         self.num_players = num_players
@@ -87,10 +87,10 @@ class Game:
         
         # Player starting corners
         corners = [
-            (1, 1),                    # Top-left
-            (1, self.width - 2),       # Top-right
-            (self.height - 2, 1),      # Bottom-left
-            (self.height - 2, self.width - 2)  # Bottom-right
+            (0, 0),                    # Top-left
+            (0, self.width - 1),       # Top-right
+            (self.height - 1, 0),      # Bottom-left
+            (self.height - 1, self.width - 1)  # Bottom-right
         ]
         
         # For 2 players, place them in opposite corners (top-left and bottom-right)
