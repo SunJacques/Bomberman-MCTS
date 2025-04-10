@@ -30,14 +30,16 @@ The game is implemented with the following components:
 
 ### Monte Carlo Tree Search
 
-The AI players use a Single-Player MCTS approach, which:
-- Predicts opponent moves and simulates possible game states
-- Uses Upper Confidence Bound (UCT) formula for node selection
-- Incorporates a sophisticated reward system that factors in:
-  - Box destruction
-  - Power-up collection
-  - Survival priority
-  - Strategic positioning
+The AI players use Monte Carlo Tree Search (MCTS) to make decisions.
+
+Two modes are supported:
+- **Trained MCTS**: Incorporates heatmaps, action priors, and reward shaping to guide search more intelligently
+- **Simple MCTS**: A classic UCT-based implementation using random playouts, no learning
+
+MCTS works by:
+- Predicting opponent moves and simulating possible game states
+- Using the UCT (Upper Confidence Bound) formula to balance exploration and exploitation
+- Running thousands of simulations to identify the most promising moves
 
 ## Requirements
 
@@ -71,14 +73,15 @@ python main.py [options]
 
 #### Command-line Options for Playing
 
-- `--players N`: Number of players (2-4), default: 4
-- `--human N`: Number of human players (0-1), default: 1
-- `--simulations N`: Number of MCTS simulations per move, default: 500
-- `--render`: Enable rendering (required for human players)
-- `--model_dir DIR`: Directory containing trained models, default: 'models'
-- `--use_trained`: Use trained models for AI players instead of default ones
-- `--fast`: Use fast mode for quicker gameplay
-- `--max_depth N`: Maximum search depth for MCTS, default: 10
+- `--players N`: Number of players (2-4), default: 4  
+- `--human N`: Number of human players (0-1), default: 1  
+- `--simulations N`: Number of MCTS simulations per move, default: 500  
+- `--render`: Enable rendering (required for human players)  
+- `--model_dir DIR`: Directory containing trained models, default: 'models'  
+- `--use_trained`: Use trained models for AI players instead of default ones  
+- `--simple_mcts`: Use a simplified version of MCTS (traditional UCT, no learning)  
+- `--fast`: Use fast mode for quicker gameplay  
+- `--max_depth N`: Maximum search depth for MCTS, default: 10  
 
 ### Training Mode
 
@@ -127,6 +130,11 @@ python train.py --episodes 200 --players 4 --render_interval 20 --parallel
 - Continue training from previously saved models:
 ```
 python train.py --episodes 100 --load --parallel
+```
+
+- Play with 3 pure MCTS bots (no training):
+```
+python main.py --players 4 --human 1 --pure_mcts --render
 ```
 
 ## Performance Optimizations

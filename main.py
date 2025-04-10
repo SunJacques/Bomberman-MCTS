@@ -4,6 +4,7 @@ import argparse
 import os
 from engine.game import Game
 from engine.mcts import MCTS
+from engine.mcts import PureMCTS  # <-- Import your simple version here
 from engine.render import GameRenderer
 
 def main():
@@ -20,9 +21,11 @@ def main():
                         help='Directory containing trained models')
     parser.add_argument('--use_trained', action='store_true',
                         help='Use trained models for AI players')
+    parser.add_argument('--pure_mcts', action='store_true',
+                        help='Use pure MCTS')
     parser.add_argument('--fast', action='store_true',
                         help='Use fast mode for quicker gameplay')
-    parser.add_argument('--max_depth', type=int, default=10,
+    parser.add_argument('--max_depth', type=int, default=200,
                         help='Maximum search depth for MCTS')
     args = parser.parse_args()
     
@@ -32,7 +35,10 @@ def main():
     # Create MCTS AI for computer players
     ai_players = []
     for i in range(args.human, args.players):
-        if args.use_trained and os.path.exists(f"{args.model_dir}/player{i}_latest.pkl"):
+        if args.pure_mcts:
+            print(f"Creating pure MCTS for AI Player {i+1}")
+            ai_players.append(PureMCTS(player_id=i, num_simulations=args.simulations, max_depth=args.max_depth))
+        elif args.use_trained and os.path.exists(f"{args.model_dir}/player{i}_latest.pkl"):
             print(f"Loading trained model for AI Player {i+1}")
             ai_players.append(MCTS.load(f"{args.model_dir}/player{i}_latest.pkl"))
         else:
@@ -53,15 +59,11 @@ def main():
         current_player = game.current_player_id
         
         if current_player == human_player_id:
-            # Get move from human player (via UI in renderer)
             action = renderer.get_human_action()
         else:
-            # Get move from appropriate AI
             ai_index = current_player - args.human
-            # Use fast mode if specified
             action = ai_players[ai_index].select_action(game, fast_mode=args.fast)
             
-        # Apply the selected action
         game.apply_action(action)
     
     # Game over - show results
@@ -71,8 +73,6 @@ def main():
     else:
         print("Game Over!")
         print("Final Rankings:", game.get_rankings())
-        
-        # Display more detailed results
         print("\nGame Statistics:")
         for player_id in range(game.num_players):
             survived = "Yes" if game.player_alive[player_id] else "No"
