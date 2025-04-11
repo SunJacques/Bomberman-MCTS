@@ -719,8 +719,9 @@ class MCTS:
 
 import math
 import random
+import numpy as np
 from collections import deque
-from engine.game import Action
+from engine.game import Action, CellType
 
 
 class SimpleNode:
@@ -732,6 +733,7 @@ class SimpleNode:
         self.children = {}
         self.visits = 0
         self.value = 0.0
+        self.max_value = float('-inf')  # NEW: stores the maximum simulation result seen
 
     def is_fully_expanded(self):
         return len(self.children) == len(self.game_state.get_legal_actions())
@@ -747,52 +749,78 @@ class SimpleNode:
                 return child
         return None
 
-    def best_child(self):
+    def best_child(self, c=1.0):
+        """
+        Use UCT (Upper Confidence Bound for Trees) for selection. Note that during
+        tree traversal, we use the mean value (value / visits) to balance exploration
+        and exploitation. This remains unchanged.
+        """
         return max(
             self.children.values(),
-            key=lambda c: c.value / c.visits if c.visits > 0 else float('-inf')
+            key=lambda child: (child.value / child.visits if child.visits > 0 else 0) +
+                              c * math.sqrt(math.log(self.visits) / child.visits if child.visits > 0 else float('inf'))
         )
 
     def update(self, reward):
+        """Update statistics: increase visits, add reward to the cumulative value,
+        and update the maximum simulation result if this reward is higher."""
         self.visits += 1
         self.value += reward
+        self.max_value = max(self.max_value, reward)  # NEW: update the max simulation result
 
     def best_action(self):
+        """
+        Choose the action that leads to a child node with the highest maximum simulation result.
+        Before selecting, we filter out actions that lead to immediate death.
+        """
+        # If no children are present, just choose from legal actions.
         if not self.children:
             legal_actions = self.game_state.get_legal_actions()
+            # Filter out bomb placement if it would trap the agent.
+            if Action.BOMB in legal_actions and PureMCTS.would_bomb_trap_agent(self.game_state, self.player_id):
+                legal_actions = [a for a in legal_actions if a != Action.BOMB]
             return legal_actions[0] if legal_actions else Action.STAY
 
-        # First filter for actions that don't lead to certain death
+        # Filter out actions that lead to certain death.
         safe_actions = {
             a: child for a, child in self.children.items()
             if not PureMCTS.would_die_if_action_taken_static(self.game_state, self.player_id, a)
         }
 
-        # Special handling for STAY to be more conservative
+        # Extra caution for staying in the same place if that action is risky.
         if Action.STAY in safe_actions and PureMCTS.is_stay_risky(self.game_state, self.player_id):
             del safe_actions[Action.STAY]
 
-        # If no safe actions exist, find the action that prolongs survival the most
+        # If no safe actions remain, pick the action that maximizes survival time.
         if not safe_actions:
             return PureMCTS.get_best_survival_action(self.game_state, self.player_id)
 
-        # Among safe actions, select the one with best value/visits ratio
+        # NEW: Select the action from the safe set which has the highest maximum simulation reward.
         return max(
             safe_actions.items(),
-            key=lambda item: item[1].value / item[1].visits if item[1].visits > 0 else float('-inf')
+            key=lambda item: item[1].max_value
         )[0]
 
 
 class PureMCTS:
-    def __init__(self, player_id, num_simulations=100, max_depth=200):
+    def __init__(self, player_id, num_simulations=100, max_depth=50):
         self.player_id = player_id
         self.num_simulations = num_simulations
         self.max_depth = max_depth
 
     def select_action(self, game, fast_mode=False):
+        # Early filtering - still useful for performance so we keep it
+        legal_actions = game.get_legal_actions(self.player_id)
+        if Action.BOMB in legal_actions and PureMCTS.would_bomb_trap_agent(game, self.player_id):
+            legal_actions = [a for a in legal_actions if a != Action.BOMB]
+            
+        # If only one action is possible after filtering, return it immediately
+        if len(legal_actions) == 1:
+            return legal_actions[0]
+            
         root = SimpleNode(game.copy(), self.player_id)
 
-        # Always check if we're already in a risky situation before running simulations
+        # Check if we're already in a risky situation before running simulations
         if PureMCTS.is_current_position_risky(game, self.player_id):
             return PureMCTS.get_best_escape_action(game, self.player_id)
 
@@ -801,7 +829,8 @@ class PureMCTS:
             depth = 0
 
             while not node.game_state.is_terminal() and node.is_fully_expanded() and depth < self.max_depth:
-                node = node.best_child()
+                # Use UCT selection with exploration constant c=1.0
+                node = node.best_child(c=1.0)
                 depth += 1
 
             if not node.game_state.is_terminal() and not node.is_fully_expanded():
@@ -830,6 +859,7 @@ class PureMCTS:
             player_pos = sim_state.player_positions[self.player_id]
             
             for action in legal:
+                # We only use lightweight checks during simulation for performance
                 nx, ny = self._get_new_position_from_action(player_pos, action)
                 
                 # Skip if the resulting position is in immediate danger
@@ -886,10 +916,130 @@ class PureMCTS:
         return False
 
     def evaluate(self, state):
+        # If the agent is dead in the simulation, return very negative value
         if not state.player_alive[self.player_id]:
-            return -1
-        rankings = state.get_rankings()
-        return 1 if rankings[0] == self.player_id else -1
+            return -10000
+            
+        # Compute the reward
+        boxes_reward = state.boxes_destroyed[self.player_id]
+        num_bombs_reward = state.player_bomb_counts[self.player_id]
+        bomb_range_reward = state.player_bomb_ranges[self.player_id]
+        reward_total = boxes_reward + num_bombs_reward + bomb_range_reward
+        
+        reward_component = reward_total * 50
+        
+        # Get player position
+        player_pos = state.player_positions[self.player_id]
+        
+        # Calculate box_dist as average distance to boxes
+        box_positions = np.argwhere(state.grid == CellType.BOX.value)
+        if len(box_positions) > 0:  # Only calculate if there are boxes
+            box_dist = sum(
+                abs(pos[0] - player_pos[0]) + abs(pos[1] - player_pos[1]) 
+                for pos in box_positions
+            ) / len(box_positions)  # Average distance
+        else:
+            box_dist = 0
+        
+        # Calculate player_dist as minimum distance to another player
+        player_dist = float('inf')
+        for p_id, pos in enumerate(state.player_positions):
+            if p_id != self.player_id and state.player_alive[p_id]:
+                dist = abs(pos[0] - player_pos[0]) + abs(pos[1] - player_pos[1])
+                player_dist = min(player_dist, dist)
+        
+        # If no other players alive, set player_dist to 0
+        if player_dist == float('inf'):
+            player_dist = 0
+        
+        # Calculate centre_dist as distance to center of the board
+        center_x, center_y = state.height // 2, state.width // 2
+        centre_dist = abs(player_pos[0] - center_x) + abs(player_pos[1] - center_y)
+        
+        # Decide which distance metric to use based on remaining boxes
+        if state.remaining_boxes > 20:
+            # When many boxes remain, prioritize center distance
+            distance_penalty = centre_dist + player_dist
+        else:
+            # When fewer boxes remain, prioritize box distance
+            distance_penalty = box_dist + player_dist
+        
+        """
+        # Add reward for winning the game (not practical because can randomly skew action selection)
+        winning_reward = 0
+        if state.is_terminal():
+            rankings = state.get_rankings()
+            if rankings and rankings[0] == self.player_id:  # If our player is the winner
+                winning_reward = 1000
+        """
+        
+        # Compute final value - negative weight for distances, positive for winning
+        value = reward_component - distance_penalty 
+        return value
+
+    @staticmethod
+    def would_bomb_trap_agent(state, player_id):
+        """Check if placing a bomb would trap the agent with no escape path"""
+        x, y = state.player_positions[player_id]
+        test_state = state.copy()
+        
+        # Add our bomb with timer 8
+        bomb_range = test_state.player_bomb_ranges[player_id]
+        test_state.bombs.append((x, y, 8, bomb_range, player_id))
+        
+        # Simulate the agent's movement for 8 turns or until safety is found
+        queue = deque([(test_state, (x, y), 0)])  # (state, position, steps)
+        visited = set([(x, y, 0)])  # (x, y, steps)
+        
+        while queue:
+            current_state, (cx, cy), steps = queue.popleft()
+            
+            # If we've already moved 8 steps and are still alive, we can escape
+            if steps >= 8:
+                return False  # Not trapped
+            
+            # Check if this position will be safe after all bombs explode
+            future_state = current_state.copy()
+            # Fast-forward until bombs with timer <= (8-steps) explode
+            for _ in range(8-steps):
+                future_state._update_bombs()
+            
+            # If we would survive at this position, we're safe
+            future_x, future_y = future_state.player_positions[player_id]
+            if future_state.player_alive[player_id] and (future_x, future_y) == (cx, cy):
+                return False  # Not trapped
+            
+            # Try moving in all four directions
+            for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+                nx, ny = cx + dx, cy + dy
+                
+                # Skip if already visited or not passable
+                if (nx, ny, steps+1) in visited or not test_state._is_passable(nx, ny):
+                    continue
+                
+                # Simulate moving to this position
+                new_state = current_state.copy()
+                original_pos = new_state.player_positions[player_id]
+                new_state.player_positions[player_id] = (nx, ny)
+                
+                # Check if we'd die immediately from any exploding bombs
+                new_state._update_bombs()
+                if not new_state.player_alive[player_id]:
+                    continue
+                
+                visited.add((nx, ny, steps+1))
+                queue.append((new_state, (nx, ny), steps+1))
+            
+            # Also try staying in place (might be safe to wait)
+            if (cx, cy, steps+1) not in visited:
+                new_state = current_state.copy()
+                new_state._update_bombs()
+                if new_state.player_alive[player_id]:
+                    visited.add((cx, cy, steps+1))
+                    queue.append((new_state, (cx, cy), steps+1))
+        
+        # If we explored all possible paths and found no escape
+        return True  # Trapped
 
     @staticmethod
     def is_current_position_deadly(state, player_id):
@@ -1009,17 +1159,16 @@ class PureMCTS:
         best_safety_score = float('-inf')
         
         for action in legal_actions:
-            # Skip STAY if in blast radius of any bomb
-            if action == Action.STAY:
-                for bx, by, timer, brange, _ in state.bombs:
-                    if PureMCTS._in_explosion_radius(x, y, bx, by, brange, state):
-                        continue
+            # Skip bomb placement if it would trap us (comprehensive check)
+            if action == Action.BOMB and PureMCTS.would_bomb_trap_agent(state, player_id):
+                continue
             
-            # Skip bomb placement in risky situations
-            if action == Action.BOMB:
-                for bx, by, timer, brange, _ in state.bombs:
-                    if PureMCTS._in_explosion_radius(x, y, bx, by, brange, state):
-                        continue
+            # Skip STAY if in blast radius of any bomb
+            if action == Action.STAY and any(
+                PureMCTS._in_explosion_radius(x, y, bx, by, brange, state)
+                for bx, by, timer, brange, _ in state.bombs
+            ):
+                continue
             
             # Get new position for movement actions
             nx, ny = PureMCTS._get_new_position_from_action(player_pos, action)
@@ -1070,6 +1219,7 @@ class PureMCTS:
                 
             stayed_alive = False
             for action in legal_actions:
+                # Using only lightweight checks during simulation for performance
                 test_state = sim_state.copy()
                 test_state.apply_action(action)
                 
@@ -1091,6 +1241,10 @@ class PureMCTS:
 
     @staticmethod
     def would_die_if_action_taken(state, player_id, action):
+        # Special case for bomb placement - check if it would trap us
+        if action == Action.BOMB and PureMCTS.would_bomb_trap_agent(state, player_id):
+            return True
+            
         test_state = state.copy()
         test_state.apply_action(action)
 
@@ -1161,6 +1315,9 @@ class PureMCTS:
             # Try all possible actions from here
             # Prioritize actions that move AWAY from bombs
             actions = current_state.get_legal_actions(player_id)
+            
+            # Using only lightweight checks during simulation for performance
+            # No filtering for self-trapping bombs here
             
             # Sort actions by safety (actions that move away from bombs first)
             def action_safety_score(action):

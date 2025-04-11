@@ -25,7 +25,7 @@ def main():
                         help='Use pure MCTS')
     parser.add_argument('--fast', action='store_true',
                         help='Use fast mode for quicker gameplay')
-    parser.add_argument('--max_depth', type=int, default=200,
+    parser.add_argument('--max_depth', type=int, default=50,
                         help='Maximum search depth for MCTS')
     args = parser.parse_args()
     
