@@ -1,3 +1,8 @@
-models/
+models/*
+!models/player0_latest.pkl
+!models/player1_latest.pkl
+!models/player2_latest.pkl
+!models/player3_latest.pkl
+
 **/__pycache__/
 venv/

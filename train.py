@@ -7,6 +7,7 @@ from tqdm import tqdm
 import multiprocessing
 from engine.game import Game, Action
 from engine.mcts import MCTS
+from engine.mcts import PureMCTS  # Import PureMCTS class
 from engine.render import GameRenderer
 
 class TrainingStats:
@@ -58,7 +59,7 @@ class TrainingStats:
 
 def run_single_episode(args):
     """Run a single training episode."""
-    episode_num, num_players, render_this_episode, render_speed, mcts_players_config = args
+    episode_num, num_players, render_this_episode, render_speed, mcts_players_config, use_pure_mcts = args
     
     # Create a new game
     game = Game(num_players=num_players)
@@ -66,22 +67,32 @@ def run_single_episode(args):
     # Create new MCTS instances for this episode
     mcts_players = []
     for config in mcts_players_config:
-        # Create a new MCTS instance with the same parameters
-        mcts = MCTS(player_id=config['player_id'], 
-                    num_simulations=config['num_simulations'],
-                    exploration_weight=config['exploration_weight'],
-                    max_depth=config['max_depth'])
+        # Determine which MCTS class to use
+        mcts_class = PureMCTS if use_pure_mcts else MCTS
         
-        # Copy learned parameters
-        mcts.heatmap = config['heatmap'].copy()
-        mcts.action_stats = config['action_stats'].copy()
+        # Create a new MCTS instance with the same parameters
+        mcts = mcts_class(player_id=config['player_id'], 
+                         num_simulations=config['num_simulations'],
+                         max_depth=config['max_depth'])
+        
+        # Set additional parameters based on MCTS type
+        if 'exploration_weight' in config:
+            mcts.exploration_weight = config['exploration_weight']
+            
+        # Copy learned parameters if they exist
+        if 'heatmap' in config:
+            mcts.heatmap = config['heatmap'].copy()
+        if 'action_stats' in config:
+            mcts.action_stats = config['action_stats'].copy()
+            
         mcts_players.append(mcts)
     
     # Create renderer if this is a visualization episode
     renderer = None
     if render_this_episode:
         renderer = GameRenderer(game)
-        display_heatmap(mcts_players[0].heatmap, f"Player 1 Position Heatmap (Episode {episode_num})")
+        if hasattr(mcts_players[0], 'heatmap'):
+            display_heatmap(mcts_players[0].heatmap, f"Player 1 Position Heatmap (Episode {episode_num})")
     
     # Main game loop
     while not game.is_terminal():
@@ -109,7 +120,7 @@ def run_single_episode(args):
 def train_mcts(num_episodes=1000, num_players=4, render_interval=100, 
                simulations=500, save_interval=50, save_dir='models',
                render_speed=0.05, load_models=False, use_parallel=False, 
-               num_processes=None, max_depth=10):
+               num_processes=None, max_depth=10, use_pure_mcts=False):
     """Train MCTS agents through self-play."""
     # Ensure save directory exists
     os.makedirs(save_dir, exist_ok=True)
@@ -130,11 +141,17 @@ def train_mcts(num_episodes=1000, num_players=4, render_interval=100,
         
         if load_models and os.path.exists(model_path):
             print(f"Loading existing model for Player {i+1}")
-            mcts_players.append(MCTS.load(model_path))
+            if use_pure_mcts:
+                mcts_players.append(PureMCTS.load(model_path))
+            else:
+                mcts_players.append(MCTS.load(model_path))
         else:
             print(f"Creating new model for Player {i+1}")
             # Use a smaller max_depth for faster simulations
-            mcts_players.append(MCTS(player_id=i, num_simulations=simulations, max_depth=max_depth))
+            if use_pure_mcts:
+                mcts_players.append(PureMCTS(player_id=i, num_simulations=simulations, max_depth=max_depth))
+            else:
+                mcts_players.append(MCTS(player_id=i, num_simulations=simulations, max_depth=max_depth))
     
     # Create progress bar
     pbar = tqdm(total=num_episodes, desc="Training Progress")
@@ -169,7 +186,7 @@ def train_mcts(num_episodes=1000, num_players=4, render_interval=100,
                     }
                     mcts_configs.append(config)
                 
-                args_list.append((current_episode, num_players, render_this_episode, render_speed, mcts_configs))
+                args_list.append((current_episode, num_players, render_this_episode, render_speed, mcts_configs, use_pure_mcts))
             
             # Run episodes in parallel
             results = pool.map(run_single_episode, args_list)
@@ -218,7 +235,7 @@ def train_mcts(num_episodes=1000, num_players=4, render_interval=100,
                         'max_depth': mcts.max_depth,
                         'heatmap': mcts.heatmap.copy(),
                         'action_stats': mcts.action_stats.copy()
-                    } for mcts in mcts_players])
+                    } for mcts in mcts_players], use_pure_mcts)
             
             game, updated_mcts = run_single_episode(args)
             
@@ -355,6 +372,8 @@ def main():
                         help='Number of processes for parallel training')
     parser.add_argument('--max_depth', type=int, default=10,
                         help='Maximum simulation depth for MCTS')
+    parser.add_argument('--pure_mcts', action='store_true',
+                        help='Use pure MCTS (traditional UCT) instead of enhanced MCTS')
     
     args = parser.parse_args()
     
@@ -370,11 +389,12 @@ def main():
         load_models=args.load,
         use_parallel=args.parallel,
         num_processes=args.processes,
-        max_depth=args.max_depth
+        max_depth=args.max_depth,
+        use_pure_mcts=args.pure_mcts  # Pass the new parameter
     )
     
     # Print results
     analyze_results(stats, mcts_players)
 
 if __name__ == "__main__":
-    main() 
+    main()

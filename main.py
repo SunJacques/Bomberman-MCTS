@@ -3,8 +3,7 @@ import random
 import argparse
 import os
 from engine.game import Game
-from engine.mcts import MCTS
-from engine.mcts import PureMCTS  # <-- Import your simple version here
+from engine.mcts import PureMCTS
 from engine.render import GameRenderer
 
 def main():
@@ -21,30 +20,39 @@ def main():
                         help='Directory containing trained models')
     parser.add_argument('--use_trained', action='store_true',
                         help='Use trained models for AI players')
-    parser.add_argument('--pure_mcts', action='store_true',
-                        help='Use pure MCTS')
     parser.add_argument('--fast', action='store_true',
                         help='Use fast mode for quicker gameplay')
     parser.add_argument('--max_depth', type=int, default=50,
                         help='Maximum search depth for MCTS')
+    
+    # Add a check to ensure render is enabled when human players are present
     args = parser.parse_args()
     
+    # Force render mode if human players are involved
+    if args.human > 0 and not args.render:
+        print("Enabling render mode for human player")
+        args.render = True
+        
     # Create a new game instance with smaller grid (9x11)
     game = Game(num_players=args.players)
     
     # Create MCTS AI for computer players
     ai_players = []
     for i in range(args.human, args.players):
-        if args.pure_mcts:
+        model_path = f"{args.model_dir}/player{i}_latest.pkl"
+
+        if args.use_trained and os.path.exists(model_path):
+            print(f"Loading trained pure MCTS model for AI Player {i+1}")
+            try:
+                ai_players.append(PureMCTS.load(model_path))
+            except Exception as e:
+                print(f"Error loading model: {e}")
+                print(f"Creating new pure MCTS for AI Player {i+1}")
+                ai_players.append(PureMCTS(player_id=i, num_simulations=args.simulations, max_depth=args.max_depth))
+        else:
             print(f"Creating pure MCTS for AI Player {i+1}")
             ai_players.append(PureMCTS(player_id=i, num_simulations=args.simulations, max_depth=args.max_depth))
-        elif args.use_trained and os.path.exists(f"{args.model_dir}/player{i}_latest.pkl"):
-            print(f"Loading trained model for AI Player {i+1}")
-            ai_players.append(MCTS.load(f"{args.model_dir}/player{i}_latest.pkl"))
-        else:
-            print(f"Creating new model for AI Player {i+1}")
-            ai_players.append(MCTS(player_id=i, num_simulations=args.simulations, max_depth=args.max_depth))
-    
+        
     # Create renderer if needed
     renderer = GameRenderer(game) if args.render else None
     
