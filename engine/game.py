@@ -63,7 +63,7 @@ class Game:
         for i in range(self.height):
             for j in range(self.width):
                 if self.grid[i, j] == CellType.FLOOR.value and (i, j) not in player_corners:
-                    if random.random() < 0.75:  # 75% chance of a box
+                    if random.random() < 0.6:  # 60% chance of a box
                         box_positions.append((i, j))
         
         # Ensure symmetry

@@ -12,7 +12,7 @@ def main():
                         help='Number of players (2-4)')
     parser.add_argument('--human', type=int, default=1, choices=[0, 1],
                         help='Number of human players (0-1)')
-    parser.add_argument('--simulations', type=int, default=500,
+    parser.add_argument('--simulations', type=int, default=100,
                         help='Number of MCTS simulations per move')
     parser.add_argument('--render', action='store_true',
                         help='Render the game')
@@ -22,7 +22,7 @@ def main():
                         help='Use trained models for AI players')
     parser.add_argument('--fast', action='store_true',
                         help='Use fast mode for quicker gameplay')
-    parser.add_argument('--max_depth', type=int, default=50,
+    parser.add_argument('--max_depth', type=int, default=75,
                         help='Maximum search depth for MCTS')
     
     # Add a check to ensure render is enabled when human players are present
