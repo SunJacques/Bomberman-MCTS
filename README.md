@@ -117,3 +117,61 @@ python train.py --episodes 50 --pure_mcts --parallel
 - Boxes may contain power-ups (extra bombs or increased explosion range)
 - The game ends after 200 turns or when all but one player is eliminated
 - The objective is to be the last player standing and destroy as many boxes as possible
+
+
+
+
+**# Bomberman with Monte Carlo Tree Search**
+A Bomberman game implementation with AI players powered by Monte Carlo Tree Search (MCTS).
+
+**## Setup**
+1. Clone the repository
+2. Install the requirements:
+```
+pip install -r requirements.txt
+```
+
+**## Running the Game**
+Run the game with the following command:
+```
+python main.py [options]
+```
+
+**### Command-line Options**
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--players N` | Number of players (2-4) | 4 |
+| `--human N` | Number of human players (0-1) | 1 |
+| `--simulations N` | MCTS simulations per move | 100 |
+| `--render` | Enable rendering (required for human players) | enabled for human players |
+| `--max_depth N` | Maximum search depth for MCTS | 75 |
+
+**## Examples**
+- Play a 4-player game with 1 human player (default):
+```
+python main.py
+```
+- Watch AI-only match with 3 players:
+```
+python main.py --players 3 --human 0 --render
+```
+- Play against 3 AI players with more simulations for stronger AI:
+```
+python main.py --players 4 --simulations 500 --render
+```
+
+**## Game Controls (Human Player)**
+- `w`: Move up
+- `a`: Move left
+- `s`: Move down
+- `d`: Move right
+- `q`: Stay still
+- `b`: Place bomb
+
+**## Game Rules**
+- Players start in opposite corners of a 9×11 grid
+- The grid contains floors (passable), walls (indestructible), and boxes (destructible)
+- Bombs explode after 8 turns, destroying boxes and eliminating players
+- Boxes may contain power-ups (extra bombs or increased explosion range)
+- The game ends after 200 turns or when all but one player is eliminated
+- The objective is to be the last player standing and destroy as many boxes as possible

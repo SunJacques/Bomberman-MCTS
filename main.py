@@ -3,7 +3,7 @@ import random
 import argparse
 import os
 from engine.game import Game
-from engine.mcts import PureMCTS
+from mcts.pure_mcts import PureMCTS
 from engine.render import GameRenderer
 
 def main():
@@ -22,7 +22,7 @@ def main():
                         help='Use trained models for AI players')
     parser.add_argument('--fast', action='store_true',
                         help='Use fast mode for quicker gameplay')
-    parser.add_argument('--max_depth', type=int, default=75,
+    parser.add_argument('--max_depth', type=int, default=50,
                         help='Maximum search depth for MCTS')
     
     # Add a check to ensure render is enabled when human players are present

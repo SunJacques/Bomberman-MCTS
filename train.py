@@ -6,8 +6,8 @@ import pickle
 from tqdm import tqdm
 import multiprocessing
 from engine.game import Game, Action
-from engine.mcts import MCTS
-from engine.mcts import PureMCTS  # Import PureMCTS class
+from mcts.pure_mcts import MCTS
+from mcts.pure_mcts import PureMCTS  # Import PureMCTS class
 from engine.render import GameRenderer
 
 class TrainingStats:

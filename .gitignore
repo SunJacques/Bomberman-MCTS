@@ -6,3 +6,4 @@ models/*
 
 **/__pycache__/
 venv/
+**/self_play_data.npz
