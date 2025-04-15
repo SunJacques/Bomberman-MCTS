@@ -1,10 +1,10 @@
 import time
-import random
 import argparse
 import os
 from engine.game import Game
 from mcts.pure_mcts import PureMCTS
 from engine.render import GameRenderer
+
 
 def main():
     parser = argparse.ArgumentParser(description='Bomberman with MCTS AI')
@@ -32,49 +32,46 @@ def main():
     if args.human > 0 and not args.render:
         print("Enabling render mode for human player")
         args.render = True
-        
-    # Create a new game instance with smaller grid (9x11)
+    
+    # Create a new game instance
     game = Game(num_players=args.players)
     
     # Create MCTS AI for computer players
     ai_players = []
     for i in range(args.human, args.players):
         model_path = f"{args.model_dir}/player{i}_latest.pkl"
-
         if args.use_trained and os.path.exists(model_path):
-            print(f"Loading trained pure MCTS model for AI Player {i+1}")
+            print(f"Loading trained MCTS model for AI Player {i+1}")
             try:
                 ai_players.append(PureMCTS.load(model_path))
             except Exception as e:
                 print(f"Error loading model: {e}")
-                print(f"Creating new pure MCTS for AI Player {i+1}")
+                print(f"Creating new MCTS for AI Player {i+1}")
                 ai_players.append(PureMCTS(player_id=i, num_simulations=args.simulations, max_depth=args.max_depth))
         else:
-            print(f"Creating pure MCTS for AI Player {i+1}")
+            print(f"Creating MCTS for AI Player {i+1}")
             ai_players.append(PureMCTS(player_id=i, num_simulations=args.simulations, max_depth=args.max_depth))
-        
+    
     # Create renderer if needed
     renderer = GameRenderer(game) if args.render else None
     
     # Main game loop
     human_player_id = 0 if args.human > 0 else None
-    
     while not game.is_terminal():
         if renderer:
             renderer.render()
             time.sleep(0.1)
         
         current_player = game.current_player_id
-        
         if current_player == human_player_id:
             action = renderer.get_human_action()
         else:
             ai_index = current_player - args.human
             action = ai_players[ai_index].select_action(game, fast_mode=args.fast)
-            
+        
         game.apply_action(action)
     
-    # Game over - show results
+    # Game over 
     if renderer:
         renderer.render()
         renderer.render_game_over(game.get_rankings())
@@ -88,6 +85,7 @@ def main():
                   f"Bomb Range={game.player_bomb_ranges[player_id]}, "
                   f"Bomb Count={game.player_bomb_counts[player_id]}, "
                   f"Survived={survived}")
+
 
 if __name__ == "__main__":
     main()

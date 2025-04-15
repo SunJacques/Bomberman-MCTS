@@ -1,1 +1,0 @@
-# Bomberman game engine package 

@@ -5,22 +5,22 @@ import numpy as np
 import pickle
 from tqdm import tqdm
 import multiprocessing
-from engine.game import Game, Action
-from mcts.pure_mcts import MCTS
-from mcts.pure_mcts import PureMCTS  # Import PureMCTS class
+from engine.game import Game
+from mcts.pure_mcts import PureMCTS
 from engine.render import GameRenderer
 
+
 class TrainingStats:
-    """Class to track training statistics."""
+    """Class to track training statistics"""
     def __init__(self):
         self.games_played = 0
-        self.win_counts = {}  # Maps player_id to win count
-        self.box_counts = {}  # Maps player_id to average boxes destroyed
-        self.survival_rates = {}  # Maps player_id to survival rate
+        self.win_counts = {}  
+        self.box_counts = {}  
+        self.survival_rates = {}  
         self.game_lengths = []
         
     def update(self, game):
-        """Update stats with a completed game."""
+        """Update stats with a completed game"""
         self.games_played += 1
         
         # Track game length
@@ -46,7 +46,7 @@ class TrainingStats:
             self.survival_rates[p_id].append(1 if game.player_alive[p_id] else 0)
     
     def get_summary(self):
-        """Get summary statistics."""
+        """Get summary statistics"""
         summary = {
             'games_played': self.games_played,
             'win_counts': self.win_counts,
@@ -57,9 +57,10 @@ class TrainingStats:
         }
         return summary
 
+
 def run_single_episode(args):
-    """Run a single training episode."""
-    episode_num, num_players, render_this_episode, render_speed, mcts_players_config, use_pure_mcts = args
+    """Run a single training episode"""
+    episode_num, num_players, render_this_episode, render_speed, mcts_players_config = args
     
     # Create a new game
     game = Game(num_players=num_players)
@@ -67,15 +68,12 @@ def run_single_episode(args):
     # Create new MCTS instances for this episode
     mcts_players = []
     for config in mcts_players_config:
-        # Determine which MCTS class to use
-        mcts_class = PureMCTS if use_pure_mcts else MCTS
+        # Create a new PureMCTS instance with the parameters
+        mcts = PureMCTS(player_id=config['player_id'], 
+                       num_simulations=config['num_simulations'],
+                       max_depth=config['max_depth'])
         
-        # Create a new MCTS instance with the same parameters
-        mcts = mcts_class(player_id=config['player_id'], 
-                         num_simulations=config['num_simulations'],
-                         max_depth=config['max_depth'])
-        
-        # Set additional parameters based on MCTS type
+        # Set additional parameters
         if 'exploration_weight' in config:
             mcts.exploration_weight = config['exploration_weight']
             
@@ -117,11 +115,12 @@ def run_single_episode(args):
     # Return game and updated MCTS players
     return game, mcts_players
 
+
 def train_mcts(num_episodes=1000, num_players=4, render_interval=100, 
-               simulations=500, save_interval=50, save_dir='models',
+               simulations=100, save_interval=50, save_dir='models',
                render_speed=0.05, load_models=False, use_parallel=False, 
-               num_processes=None, max_depth=10, use_pure_mcts=False):
-    """Train MCTS agents through self-play."""
+               num_processes=None, max_depth=50):
+    """Train MCTS agents through self-play"""
     # Ensure save directory exists
     os.makedirs(save_dir, exist_ok=True)
     
@@ -141,17 +140,11 @@ def train_mcts(num_episodes=1000, num_players=4, render_interval=100,
         
         if load_models and os.path.exists(model_path):
             print(f"Loading existing model for Player {i+1}")
-            if use_pure_mcts:
-                mcts_players.append(PureMCTS.load(model_path))
-            else:
-                mcts_players.append(MCTS.load(model_path))
+            mcts_players.append(PureMCTS.load(model_path))
         else:
             print(f"Creating new model for Player {i+1}")
             # Use a smaller max_depth for faster simulations
-            if use_pure_mcts:
-                mcts_players.append(PureMCTS(player_id=i, num_simulations=simulations, max_depth=max_depth))
-            else:
-                mcts_players.append(MCTS(player_id=i, num_simulations=simulations, max_depth=max_depth))
+            mcts_players.append(PureMCTS(player_id=i, num_simulations=simulations, max_depth=max_depth))
     
     # Create progress bar
     pbar = tqdm(total=num_episodes, desc="Training Progress")
@@ -186,7 +179,7 @@ def train_mcts(num_episodes=1000, num_players=4, render_interval=100,
                     }
                     mcts_configs.append(config)
                 
-                args_list.append((current_episode, num_players, render_this_episode, render_speed, mcts_configs, use_pure_mcts))
+                args_list.append((current_episode, num_players, render_this_episode, render_speed, mcts_configs))
             
             # Run episodes in parallel
             results = pool.map(run_single_episode, args_list)
@@ -235,7 +228,7 @@ def train_mcts(num_episodes=1000, num_players=4, render_interval=100,
                         'max_depth': mcts.max_depth,
                         'heatmap': mcts.heatmap.copy(),
                         'action_stats': mcts.action_stats.copy()
-                    } for mcts in mcts_players], use_pure_mcts)
+                    } for mcts in mcts_players])
             
             game, updated_mcts = run_single_episode(args)
             
@@ -266,8 +259,9 @@ def train_mcts(num_episodes=1000, num_players=4, render_interval=100,
     pbar.close()
     return stats, mcts_players
 
+
 def save_training_state(episode, stats, mcts_players, save_dir, num_episodes):
-    """Save training state and log progress."""
+    """Save training state and log progress"""
     # Calculate summary statistics
     summary = stats.get_summary()
     
@@ -294,8 +288,9 @@ def save_training_state(episode, stats, mcts_players, save_dir, num_episodes):
     
     tqdm.write(log_msg)
 
+
 def display_heatmap(heatmap, title="Position Heatmap"):
-    """Display the heatmap for visualization."""
+    """Display the heatmap for visualization"""
     print(f"\n{title}:")
     print("-" * 30)
     
@@ -317,8 +312,9 @@ def display_heatmap(heatmap, title="Position Heatmap"):
         print()
     print("-" * 30)
 
+
 def analyze_results(stats, mcts_players):
-    """Analyze and print training results."""
+    """Analyze and print training results"""
     summary = stats.get_summary()
     
     print("\n===== Training Results =====")
@@ -348,13 +344,14 @@ def analyze_results(stats, mcts_players):
     for i, mcts in enumerate(mcts_players):
         display_heatmap(mcts.heatmap, f"Player {i+1} Final Position Heatmap")
 
+
 def main():
     parser = argparse.ArgumentParser(description='Train Bomberman MCTS AI')
     parser.add_argument('--episodes', type=int, default=100,
                         help='Number of training episodes')
     parser.add_argument('--players', type=int, default=2, choices=[2, 3, 4],
                         help='Number of players (2-4)')
-    parser.add_argument('--simulations', type=int, default=500,
+    parser.add_argument('--simulations', type=int, default=100,
                         help='Number of MCTS simulations per move')
     parser.add_argument('--render_interval', type=int, default=20,
                         help='Render every N episodes (0 to disable)')
@@ -370,10 +367,8 @@ def main():
                         help='Use parallel processing for faster training')
     parser.add_argument('--processes', type=int, default=None,
                         help='Number of processes for parallel training')
-    parser.add_argument('--max_depth', type=int, default=10,
+    parser.add_argument('--max_depth', type=int, default=50,
                         help='Maximum simulation depth for MCTS')
-    parser.add_argument('--pure_mcts', action='store_true',
-                        help='Use pure MCTS (traditional UCT) instead of enhanced MCTS')
     
     args = parser.parse_args()
     
@@ -389,12 +384,12 @@ def main():
         load_models=args.load,
         use_parallel=args.parallel,
         num_processes=args.processes,
-        max_depth=args.max_depth,
-        use_pure_mcts=args.pure_mcts  # Pass the new parameter
+        max_depth=args.max_depth
     )
     
     # Print results
     analyze_results(stats, mcts_players)
+
 
 if __name__ == "__main__":
     main()

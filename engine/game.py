@@ -3,6 +3,7 @@ import random
 from enum import Enum
 from collections import deque
 
+
 class CellType(Enum):
     FLOOR = 0
     WALL = 1
@@ -11,6 +12,7 @@ class CellType(Enum):
     POWERUP_BOMB = 4
     POWERUP_RANGE = 5
 
+
 class Action(Enum):
     STAY = 0
     UP = 1
@@ -18,6 +20,7 @@ class Action(Enum):
     DOWN = 3
     LEFT = 4
     BOMB = 5
+
 
 class Game:
     def __init__(self, num_players=4, width=11, height=9, max_turns=200):
@@ -34,14 +37,14 @@ class Game:
         self.initialize_players()
         
         # Bomb tracking
-        self.bombs = []  # List of (x, y, timer, range, player_id)
+        self.bombs = []  
         
         # Game state
         self.is_over = False
         self.boxes_destroyed = [0] * num_players
     
     def initialize_grid(self):
-        """Initialize the game grid with walls, floors, and boxes."""
+        """Initialize the game grid with walls, floors and boxes"""
         # Create empty grid filled with floors
         self.grid = np.zeros((self.height, self.width), dtype=int)
         
@@ -52,13 +55,13 @@ class Game:
         
         # Keep corners free for players
         player_corners = [
-            (0, 0), (0, 1), (1, 0),  # Top-left
-            (0, self.width-1), (0, self.width-2), (1, self.width-1),  # Top-right
-            (self.height-1, 0), (self.height-2, 0), (self.height-1, 1),  # Bottom-left
-            (self.height-1, self.width-1), (self.height-1, self.width-2), (self.height-2, self.width-1)  # Bottom-right
+            (0, 0), (0, 1), (1, 0),  
+            (0, self.width-1), (0, self.width-2), (1, self.width-1),  
+            (self.height-1, 0), (self.height-2, 0), (self.height-1, 1),  
+            (self.height-1, self.width-1), (self.height-1, self.width-2), (self.height-2, self.width-1) 
         ]
         
-        # Place boxes randomly but symmetrically
+        # Place boxes randomly and symmetrically
         box_positions = []
         for i in range(self.height):
             for j in range(self.width):
@@ -79,30 +82,30 @@ class Game:
         self.remaining_boxes = np.sum(self.grid == CellType.BOX.value)
     
     def initialize_players(self):
-        """Initialize player positions and attributes."""
+        """Initialize player positions and attributes"""
         self.player_positions = [(0, 0)] * self.num_players
         self.player_alive = [True] * self.num_players
-        self.player_bomb_counts = [1] * self.num_players  # Start with 1 bomb
-        self.player_bomb_ranges = [2] * self.num_players  # Start with range 2
+        self.player_bomb_counts = [1] * self.num_players  
+        self.player_bomb_ranges = [2] * self.num_players  
         
         # Player starting corners
         corners = [
-            (0, 0),                    # Top-left
-            (0, self.width - 1),       # Top-right
-            (self.height - 1, 0),      # Bottom-left
-            (self.height - 1, self.width - 1)  # Bottom-right
+            (0, 0),                   
+            (0, self.width - 1),     
+            (self.height - 1, 0),     
+            (self.height - 1, self.width - 1) 
         ]
         
-        # For 2 players, place them in opposite corners (top-left and bottom-right)
+        # For 2 players place them in opposite corners (top-left and bottom-right)
         if self.num_players == 2:
             self.player_positions = [corners[0], corners[3]]
         else:
-            # For 3 or 4 players, use consecutive corners
+            # For 3 or 4 players use consecutive corners
             for i in range(self.num_players):
                 self.player_positions[i] = corners[i]
     
     def get_legal_actions(self, player_id=None):
-        """Get legal actions for the current player or specified player."""
+        """Get legal actions for the current player or specified player"""
         if player_id is None:
             player_id = self.current_player_id
         
@@ -128,7 +131,7 @@ class Game:
         return legal_actions
     
     def _get_new_position(self, x, y, action):
-        """Get new position after an action."""
+        """Get new position after an action"""
         if action == Action.UP:
             return x - 1, y
         elif action == Action.RIGHT:
@@ -140,7 +143,7 @@ class Game:
         return x, y  # STAY
     
     def _is_passable(self, x, y):
-        """Check if a position is passable."""
+        """Check if a position is passable"""
         # Check bounds
         if x < 0 or x >= self.height or y < 0 or y >= self.width:
             return False
@@ -158,7 +161,7 @@ class Game:
         return True
     
     def apply_action(self, action):
-        """Apply an action for the current player and update game state."""
+        """Apply an action for the current player and update game state"""
         player_id = self.current_player_id
         
         if self.player_alive[player_id]:
@@ -167,7 +170,7 @@ class Game:
             if action == Action.BOMB:
                 # Place a bomb
                 bomb_range = self.player_bomb_ranges[player_id]
-                self.bombs.append((x, y, 8, bomb_range, player_id))  # 8 turns until explosion
+                self.bombs.append((x, y, 8, bomb_range, player_id))  
             elif action != Action.STAY:
                 # Move player
                 new_x, new_y = self._get_new_position(x, y, action)
@@ -185,14 +188,14 @@ class Game:
         # Move to next player
         self.current_player_id = (self.current_player_id + 1) % self.num_players
         
-        # If completed a round, update bombs and check for explosions
+        # If completed a round update bombs and check for explosions
         if self.current_player_id == 0:
             self.turn += 1
             self._update_bombs()
             self._check_game_over()
     
     def _update_bombs(self):
-        """Update bomb timers and handle explosions."""
+        """Update bomb timers and handle explosions"""
         # Decrease bomb timers
         for i in range(len(self.bombs)):
             x, y, timer, bomb_range, player_id = self.bombs[i]
@@ -204,7 +207,7 @@ class Game:
         # Process explosions
         while exploding_bombs:
             bomb_idx = exploding_bombs.pop(0)
-            if bomb_idx >= len(self.bombs):  # Safety check for chain reactions
+            if bomb_idx >= len(self.bombs):  
                 continue
                 
             x, y, _, bomb_range, player_id = self.bombs[bomb_idx]
@@ -221,16 +224,16 @@ class Game:
                 for r in range(1, bomb_range + 1):
                     nx, ny = x + dx * r, y + dy * r
                     if not self._process_explosion(nx, ny, player_id):
-                        break  # Stop in this direction if hit wall or box
+                        break  
             
-            # Check for chain reactions (other bombs caught in the explosion)
+            # Check for chain reactions 
             for i, (bx, by, btimer, brange, bplayer) in enumerate(self.bombs):
                 if self._is_in_explosion(bx, by, x, y, bomb_range):
                     if i not in exploding_bombs:
                         exploding_bombs.append(i)
     
     def _process_explosion(self, x, y, player_id):
-        """Process explosion at a position. Returns False if explosion stops at this cell."""
+        """Process explosion at a position"""
         # Check bounds
         if x < 0 or x >= self.height or y < 0 or y >= self.width:
             return False
@@ -239,7 +242,7 @@ class Game:
         cell = self.grid[x, y]
         
         if cell == CellType.WALL.value:
-            return False  # Wall stops explosion
+            return False  
             
         elif cell == CellType.BOX.value:
             # Destroy box and possibly spawn power-up
@@ -258,12 +261,12 @@ class Game:
         # Check for players at this position
         for p_id, (px, py) in enumerate(self.player_positions):
             if (px, py) == (x, y) and self.player_alive[p_id]:
-                self.player_alive[p_id] = False  # Player caught in explosion
+                self.player_alive[p_id] = False  
         
-        return True  # Explosion continues
+        return True  
     
     def _is_in_explosion(self, bx, by, x, y, bomb_range):
-        """Check if bomb at (bx, by) is caught in explosion from (x, y) with range bomb_range."""
+        """Check if bomb at (bx, by) is caught in explosion from (x, y) with range bomb_range"""
         # Check if bomb is at the explosion center
         if (bx, by) == (x, y):
             return True
@@ -283,7 +286,7 @@ class Game:
         return False
     
     def _check_game_over(self):
-        """Check if the game is over."""
+        """Check if the game is over"""
         # Game ends after max_turns
         if self.turn >= self.max_turns:
             self.is_over = True
@@ -301,23 +304,22 @@ class Game:
             return
     
     def is_terminal(self):
-        """Return True if the game is over."""
+        """Return True if the game is over"""
         return self.is_over
     
     def get_rankings(self):
-        """Get player rankings based on survival and boxes destroyed."""
-        # First by survival (alive players rank higher)
-        # Then by boxes destroyed
+        """Get player rankings based on survival and boxes destroyed"""
+        # First by survival then by boxes destroyed
         rankings = []
         for p_id in range(self.num_players):
             rankings.append((p_id, self.player_alive[p_id], self.boxes_destroyed[p_id]))
         
-        # Sort: first by alive status (descending), then by boxes destroyed (descending)
+        # Sort
         rankings.sort(key=lambda x: (x[1], x[2]), reverse=True)
         return [p_id for p_id, _, _ in rankings]
     
     def copy(self):
-        """Create a deep copy of the game state."""
+        """Create a deep copy of the game state"""
         game_copy = Game(num_players=self.num_players, width=self.width, 
                         height=self.height, max_turns=self.max_turns)
         
@@ -343,7 +345,7 @@ class Game:
         return game_copy
     
     def is_survivable(self, player_id):
-        """Check if a player can survive the current bomb situation using BFS."""
+        """Check if a player can survive the current bomb situation using BFS"""
         if not self.player_alive[player_id]:
             return False
             
@@ -358,7 +360,7 @@ class Game:
         
         # BFS to find safe position
         visited = set()
-        queue = deque([(x, y, 0)])  # (x, y, steps)
+        queue = deque([(x, y, 0)])  
         
         while queue:
             cx, cy, steps = queue.popleft()
@@ -387,7 +389,7 @@ class Game:
         return False
     
     def estimated_bombs(self):
-        """Estimate the score based on future bomb explosions."""
+        """Estimate the score based on future bomb explosions"""
         game_copy = self.copy()
         
         # Fast forward until all bombs explode
@@ -407,7 +409,7 @@ class Game:
         return game_copy.boxes_destroyed
     
     def can_kill(self, player_id, enemy_id):
-        """Check if player can trap enemy within two turns."""
+        """Check if player can trap enemy within two turns"""
         if not self.player_alive[player_id] or not self.player_alive[enemy_id]:
             return False
             
@@ -415,10 +417,10 @@ class Game:
         ex, ey = self.player_positions[enemy_id]
         
         # If too far away, can't trap
-        if abs(px - ex) + abs(py - ey) > 6:  # Manhattan distance
+        if abs(px - ex) + abs(py - ey) > 6: 
             return False
             
-        # Simplified check: if enemy is near a bomb with timer <= 3, they might be trapped
+        # If enemy is near a bomb with timer <= 3, they might be trapped
         for bx, by, timer, bomb_range, _ in self.bombs:
             if timer <= 3 and abs(bx - ex) + abs(by - ey) <= 2:
                 # Check if enemy has few escape routes

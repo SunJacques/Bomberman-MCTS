@@ -1,20 +1,16 @@
 import os
 import sys
-import time
-import numpy as np
 from engine.game import Action, CellType
 
-class GameRenderer:
-    """Improved console-based renderer for the Bomberman game.
-    """
 
+class GameRenderer:
     def __init__(self, game):
         self.game = game
-        # Define block dimensions: height is 3 and width is 7
+        # Define block dimensions
         self.block_height = 3
         self.block_width = 7
-        self.center_row = self.block_height // 2  # 1
-        self.center_col = self.block_width // 2    # 3
+        self.center_row = self.block_height // 2  
+        self.center_col = self.block_width // 2   
         
         self.cell_chars = {
             CellType.FLOOR.value: ' ',
@@ -47,34 +43,27 @@ class GameRenderer:
         }
 
     def clear_screen(self):
-        """Clear the console screen."""
+        """Clear the console screen"""
         os.system('cls' if os.name == 'nt' else 'clear')
 
     def render(self):
-        """Render the current game state with each cell as a 3x7 block.
-           If a cell contains a power-up, only the center shows the power-up symbol.
-           When a player has placed a bomb on the same cell, the player is drawn at (1,2)
-           and the bomb countdown at (1,4).
+        """
+        Render the current game state with each cell as a 3x7 block
         """
         self.clear_screen()
 
-        # Print game information.
+        # Print game information
         print(f"Turn: {self.game.turn}/{self.game.max_turns}")
         print(f"Boxes Remaining: {self.game.remaining_boxes}")
         print(f"Current Player: {self.game.current_player_id + 1}\n")
 
-        # Build a list of strings (each string is one line of output).
         render_lines = []
 
-        # Create a 2D list of block strings for each cell.
-        # Each cell block is a list of self.block_height strings.
         cell_blocks = [[None for _ in range(self.game.width)] for _ in range(self.game.height)]
         for i in range(self.game.height):
             for j in range(self.game.width):
-                # Get the base symbol for the cell type.
                 cell_type = self.game.grid[i, j]
                 base_char = self.cell_chars.get(cell_type, '?')
-                # Choose a base color for the cell.
                 if base_char in ['▓']:
                     cell_color = self.colors['white']
                 elif base_char in ['▒']:
@@ -82,43 +71,33 @@ class GameRenderer:
                 else:
                     cell_color = self.colors['reset']
 
-                # Special handling for power-ups:
-                # Instead of filling the entire block with the power-up character,
-                # use the floor (empty) background and later draw the power-up symbol in the center.
                 if cell_type in [CellType.POWERUP_BOMB.value, CellType.POWERUP_RANGE.value]:
                     powerup_symbol = self.cell_chars[cell_type]
-                    # Set background to floor.
                     base_char = self.cell_chars[CellType.FLOOR.value]
                     cell_color = self.colors['reset']
                 else:
                     powerup_symbol = None
 
-                # Check for overrides: player (always yellow), bomb (red), or power-up (cyan).
                 player_symbol = None
                 bomb_symbol = None
                 player_color = self.colors['yellow']
                 bomb_color = self.colors['red']
                 powerup_color = self.colors['green']
-                # Check if a player is present.
                 for player_id, (px, py) in enumerate(self.game.player_positions):
                     if (px, py) == (i, j) and self.game.player_alive[player_id]:
                         player_symbol = self.player_chars[player_id]
                         break
-                # Check for a bomb on this cell.
                 for bomb in self.game.bombs:
                     bx, by, timer, _, _ = bomb
                     if (bx, by) == (i, j):
                         bomb_symbol = str(timer)
                         break
-                # If no player or bomb override and this is a power-up cell, use power-up override.
                 if player_symbol is None and bomb_symbol is None and powerup_symbol is not None:
-                    # Use the power-up symbol as override.
                     override_symbol = powerup_symbol
                     override_color = powerup_color
                 else:
                     override_symbol = None
                     override_color = self.colors['reset']
-                    # If there's a player override or bomb override, choose accordingly.
                     if player_symbol is not None:
                         override_symbol = player_symbol
                         override_color = player_color
@@ -126,12 +105,12 @@ class GameRenderer:
                         override_symbol = bomb_symbol
                         override_color = bomb_color
 
-                # Build the block for this cell.
+                # Build the block for this cell
                 block = []
                 for r in range(self.block_height):
                     row_chars = ""
                     for c in range(self.block_width):
-                        # If both a player and a bomb override exist, use specific positions.
+                        # If both a player and a bomb override exist, use specific positions
                         if player_symbol is not None and bomb_symbol is not None:
                             if r == self.center_row and c == self.center_col - 1:
                                 row_chars += f"{player_color}{player_symbol}{self.colors['reset']}"
@@ -140,7 +119,7 @@ class GameRenderer:
                             else:
                                 row_chars += f"{cell_color}{base_char}{self.colors['reset']}"
                         else:
-                            # If an override exists, draw it in the center.
+                            # If an override exists, draw it in the center
                             if override_symbol is not None and r == self.center_row and c == self.center_col:
                                 row_chars += f"{override_color}{override_symbol}{self.colors['reset']}"
                             else:
@@ -148,7 +127,7 @@ class GameRenderer:
                     block.append(row_chars)
                 cell_blocks[i][j] = block
 
-        # Assemble the blocks row by row.
+        # Assemble the blocks row by row
         for i in range(self.game.height):
             for r in range(self.block_height):
                 line = ""
@@ -156,7 +135,6 @@ class GameRenderer:
                     line += cell_blocks[i][j][r]
                 render_lines.append(line)
 
-        # Optionally add a border around the grid.
         total_width = self.game.width * self.block_width
         border_line = "+" + "-" * total_width + "+"
         print(border_line)
@@ -164,7 +142,7 @@ class GameRenderer:
             print("|" + line + "|")
         print(border_line)
 
-        # Print player information.
+        # Print player information
         print("\nPlayers:")
         for player_id in range(self.game.num_players):
             status = "ALIVE" if self.game.player_alive[player_id] else "DEAD"
